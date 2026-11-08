@@ -67,3 +67,5 @@ The queue ignores Hermes's narrative as a result in this mode. A model failure o
 ## Rollback
 
 Set the website flag back to false for **new** searches. Leave the tool service, keys, and compatible worker running until already-admitted tool-enabled searches finish. Their immutable stored requests retain their version pin. Do not delete evidence or rotate capability-signing/control keys midway through those jobs. Never change a job ID to force an automatic AI rerun.
+
+For four parallel search workers, durable continuation and six MCP tools, follow [Controlled search v2](Controlled-search-v2.md). Its staged rollout supersedes the four-tool protocol-1 instructions above for new v2 admissions.

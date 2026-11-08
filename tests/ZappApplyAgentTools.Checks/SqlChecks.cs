@@ -13,6 +13,7 @@ static class SqlChecks
         try
         {
             var connection = new SqlConnectionStringBuilder(master.ConnectionString) { InitialCatalog = name }; var store = new SqlSearchStore(connection.ConnectionString); await store.Initialize(default); await store.Initialize(default);
+            await ControlledChecks.Run(check, store);
             var options = new SearchOptions { ControlKey = new string('s', 40), McpKey = new string('t', 40), TargetCount = 1 };
             var service = new SearchService(store, new FakeReader(), new FakePolicy(), options, TimeProvider.System);
             var id = Guid.NewGuid(); var input = JsonSerializer.SerializeToElement(new { schemaVersion = 1, jobId = id, jobType = "AI_Search", ownerId = "fictional-owner", payload = new { } });

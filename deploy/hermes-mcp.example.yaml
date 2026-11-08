@@ -8,8 +8,8 @@ mcp_servers:
     trust: full
     timeout: 60
     connect_timeout: 20
-    supports_parallel_tool_calls: false
+    supports_parallel_tool_calls: true
     tools:
-      include: [read_posting, submit_candidates, get_search_progress, finish_search]
+      include: [read_posting, submit_candidates, get_search_progress, finish_search, worker_update, inspect_source]
       resources: false
       prompts: false

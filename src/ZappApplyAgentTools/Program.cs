@@ -46,6 +46,7 @@ public static class SearchHost
         });
         app.MapPost("/internal/searches", (JsonElement request, SearchService searches, CancellationToken ct) => searches.Begin(request, ct));
         app.MapPost("/internal/searches/{id:guid}/complete", (Guid id, CompletionRequest request, SearchService searches, CancellationToken ct) => searches.Complete(id, request.OwnerId, request.Reason, ct));
+        app.MapPost("/internal/searches/{id:guid}/control", (Guid id, SearchControlRequest request, SearchService searches, CancellationToken ct) => searches.Control(id, request, ct));
         app.MapMcp("/mcp");
         return app;
 

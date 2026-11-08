@@ -28,6 +28,10 @@ public sealed class PublicPostingReader : IPostingReader
     }
     public async Task<(string Url, string Text)> Read(string url, CancellationToken ct)
     {
+        var result = await ReadEvidence(url, ct); return (result.Url, result.Text);
+    }
+    public async Task<PostingEvidence> ReadEvidence(string url, CancellationToken ct)
+    {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(20));
         using var handler = new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
         handler.ConnectCallback = async (context, token) =>
@@ -51,8 +55,9 @@ public sealed class PublicPostingReader : IPostingReader
             await using var input = await response.Content.ReadAsStreamAsync(deadline.Token); using var bytes = new MemoryStream(); var buffer = new byte[16384]; int read;
             while ((read = await input.ReadAsync(buffer, deadline.Token)) > 0) { if (bytes.Length + read > 2_000_000) throw new ToolFailure("Posting page is too large."); bytes.Write(buffer, 0, read); }
             var body = Encoding.UTF8.GetString(bytes.ToArray());
-            if (media is "application/json" or "text/plain") return (uri.AbsoluteUri, body.Length <= 150_000 ? body : throw new ToolFailure("Posting text is too large."));
+            if (media is "application/json" or "text/plain") return new(uri.AbsoluteUri, body.Length <= 150_000 ? body : throw new ToolFailure("Posting text is too large."), []);
             var document = await new HtmlParser().ParseDocumentAsync(body, deadline.Token);
+            var applicationUrls = ApplicationLinks(body, uri);
             var structured = new List<string>();
             foreach (var script in document.QuerySelectorAll("script[type='application/ld+json']"))
             {
@@ -63,9 +68,19 @@ public sealed class PublicPostingReader : IPostingReader
             var text = structured.Count > 0 ? string.Join("\n\n", structured) : content?.TextContent ?? "";
             text = WebUtility.HtmlDecode(text).Trim();
             if (text.Length > 150_000) throw new ToolFailure("Posting text is too large.");
-            return (uri.AbsoluteUri, text);
+            return new(uri.AbsoluteUri, text, applicationUrls);
         }
         throw new ToolFailure("Too many posting redirects.");
+    }
+    public static string[] ApplicationLinks(string html, Uri page)
+    {
+        var document = new HtmlParser().ParseDocument(html);
+        return document.QuerySelectorAll("a[href],iframe[src]").Where(element =>
+            element.LocalName == "iframe" || element.TextContent.Contains("apply", StringComparison.OrdinalIgnoreCase)
+            || (element.GetAttribute("aria-label") ?? "").Contains("apply", StringComparison.OrdinalIgnoreCase))
+            .Select(element => element.GetAttribute(element.LocalName == "iframe" ? "src" : "href"))
+            .Select(value => Uri.TryCreate(page, value, out var uri) && uri.Scheme is "https" or "http" && string.IsNullOrEmpty(uri.UserInfo) && uri.IsDefaultPort ? uri.AbsoluteUri : null)
+            .OfType<string>().Where(url => url.Length <= 2048).Distinct().Take(30).ToArray();
     }
     private static void Collect(JsonElement node, List<string> output)
     {

@@ -70,7 +70,7 @@ try
     http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.McpKey); http.DefaultRequestHeaders.Accept.ParseAdd("application/json, text/event-stream");
     async Task<JsonDocument> Rpc(object payload) { using var response = await http.PostAsJsonAsync("/mcp", payload); var text = await response.Content.ReadAsStringAsync(); if (!response.IsSuccessStatusCode) throw new Exception("MCP HTTP " + response.StatusCode + ": " + text); if (text.StartsWith("event:") || text.StartsWith("data:")) text = text.Split('\n').Last(line => line.StartsWith("data: "))[6..]; return JsonDocument.Parse(text); }
     using (var initialized = await Rpc(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { protocolVersion = "2025-06-18", capabilities = new { }, clientInfo = new { name = "fictional-checks", version = "1" } } })) Check("Real MCP HTTP handshake works", initialized.RootElement.TryGetProperty("result", out _));
-    using (var tools = await Rpc(new { jsonrpc = "2.0", id = 2, method = "tools/list" })) { var names = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToArray(); Check("Only four approved tools exposed", names.Order().SequenceEqual(new[] { "finish_search", "get_search_progress", "read_posting", "submit_candidates" })); }
+    using (var tools = await Rpc(new { jsonrpc = "2.0", id = 2, method = "tools/list" })) { var names = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToArray(); Check("Only six approved tools exposed", names.Order().SequenceEqual(new[] { "finish_search", "get_search_progress", "inspect_source", "read_posting", "submit_candidates", "worker_update" })); }
     var httpSession = await new SearchService(memory, reader, policy, options, TimeProvider.System).Begin(Request(Guid.NewGuid()), default);
 
     using (var toolResult = await Rpc(new { jsonrpc = "2.0", id = 3, method = "tools/call", @params = new { name = "read_posting", arguments = new { handle = httpSession.Handle, url = "https://employer.example/jobs/http" } } }))
@@ -85,8 +85,27 @@ try
     }
     using (var denied = await Rpc(new { jsonrpc = "2.0", id = 5, method = "tools/call", @params = new { name = "get_search_progress", arguments = new { handle = new string('f', 64) } } }))
         Check("MCP invalid session returns a tool error", denied.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.ControlKey);
+    var controlId = Guid.NewGuid();
+    using var controlledAdmission = await http.PostAsJsonAsync("/internal/searches", new { schemaVersion = 1, jobId = controlId, jobType = "AI_Search", ownerId = "fixture-owner", payload = new { searchToolsVersion = 2, startingSources = new[] { "employer.example" } } });
+    using var admittedJson = JsonDocument.Parse(await controlledAdmission.Content.ReadAsStringAsync()); var controlledHandle = admittedJson.RootElement.GetProperty("handle").GetString();
+    using var firstControl = await http.PostAsJsonAsync($"/internal/searches/{controlId}/control", new { ownerId = "fixture-owner" });
+    using var firstControlJson = JsonDocument.Parse(await firstControl.Content.ReadAsStringAsync());
+    Check("HTTP v2 control returns four assignments and stable turn identity", firstControl.IsSuccessStatusCode && firstControlJson.RootElement.GetProperty("input").GetProperty("assignments").GetArrayLength() == 4);
+    using var secondControl = await http.PostAsJsonAsync($"/internal/searches/{controlId}/control", new { ownerId = "fixture-owner" });
+    using var secondControlJson = JsonDocument.Parse(await secondControl.Content.ReadAsStringAsync());
+    Check("HTTP serialization retains exact continuation request data", firstControlJson.RootElement.GetProperty("input").GetRawText() == secondControlJson.RootElement.GetProperty("input").GetRawText());
+    Check("HTTP control owner mismatch denied", (await http.PostAsJsonAsync($"/internal/searches/{controlId}/control", new { ownerId = "foreign-owner" })).StatusCode == HttpStatusCode.Conflict);
+    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.McpKey);
+    using var registered = await Rpc(new { jsonrpc = "2.0", id = 10, method = "tools/call", @params = new { name = "worker_update", arguments = new { handle = controlledHandle, workerId = "round-0-worker-1", status = "started" } } });
+    Check("Real MCP worker registration is callable", !registered.RootElement.GetProperty("result").TryGetProperty("isError", out var workerError) || !workerError.GetBoolean());
+    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.ControlKey);
+    using var parentComplete = await http.PostAsJsonAsync($"/internal/searches/{controlId}/control", new { ownerId = "fixture-owner", completedRound = 0 });
+    using var pendingJson = JsonDocument.Parse(await parentComplete.Content.ReadAsStringAsync());
+    Check("HTTP parent completion preserves active MCP child", pendingJson.RootElement.GetProperty("decision").GetString() == "wait");
     http.DefaultRequestHeaders.Add("Origin", "https://untrusted.example"); Check("Browser-origin requests denied", (await http.PostAsJsonAsync("/internal/searches", Request(Guid.NewGuid()))).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized);
 }
 finally { await hosted.StopAsync(); await hosted.DisposeAsync(); }
+await ControlledChecks.Run(Check);
 if (args.Contains("--localdb")) await SqlChecks.Run(Check);
 Console.WriteLine($"{count} search tool checks passed. No live AI or production writes.");
