@@ -4,5 +4,6 @@
 .env
 *.env
 *.log
-tests
 artifacts
+
+.vs

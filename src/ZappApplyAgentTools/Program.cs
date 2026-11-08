@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-using ModelContextProtocol.AspNetCore;
 using ZappApplyAgentTools;
 
 var app = SearchHost.Build(args);

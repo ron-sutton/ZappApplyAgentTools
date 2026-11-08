@@ -1,0 +1,54 @@
+name: Deploy ZappApplyAgentTools
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      initialize_store:
+        description: Create the search-tool SQL tables if missing (first deployment)
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zappapply-agenttools-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, Windows, X64, zappapply-deploy]
+    timeout-minutes: 30
+    environment: production
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Check out agent tools
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build, check and deploy agent tools
+        env:
+          ZAPPAPPLY_AGENTTOOLS_ENV_FILE: ${{ vars.ZAPPAPPLY_AGENTTOOLS_ENV_FILE || 'C:\ProgramData\ZappApplyAgentTools\service.env' }}
+          ZAPPAPPLY_QUEUE_NETWORK: ${{ vars.ZAPPAPPLY_QUEUE_NETWORK || 'zappapply-queue_default' }}
+          INITIALIZE_STORE: ${{ inputs.initialize_store || false }}
+        run: |
+          $powerShell7 = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
+          if (!(Test-Path -LiteralPath $powerShell7 -PathType Leaf)) {
+            throw "PowerShell 7 must be installed for all users at $powerShell7 on the runner host."
+          }
+          & $powerShell7 -NoLogo -NoProfile -NonInteractive -File (Join-Path $PWD 'tests/deployment/Deploy.Checks.ps1')
+          if ($LASTEXITCODE -ne 0) { throw 'Deployment checks failed.' }
+          $deployArgs = @(
+            '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', (Join-Path $PWD 'deploy/Deploy.ps1'),
+            '-Image', "zappapply-agenttools:release-$env:GITHUB_SHA-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          )
+          if ($env:INITIALIZE_STORE -eq 'true') { $deployArgs += '-InitializeStore' }
+          & $powerShell7 @deployArgs
+          exit $LASTEXITCODE

@@ -59,3 +59,5 @@ See [deployment instructions](docs/Deployment.md). The website rollout flag defa
 - Accepted jobs are persisted during the search; the existing website completion handler displays/applies them when the search finishes. This does not add live UI streaming.
 - Internal requests require separate service keys, plus an opaque per-search capability for MCP calls. Never expose the control or MCP endpoint publicly or log its Authorization header. Rotate keys only after active searches drain.
 - Keep evidence retention for at least the job lifetime. Production retention/cleanup policies should be part of the planned architecture audit.
+
+Deploy from GitHub using the [self-hosted runner workflow](docs/GitHub-deployment.md). The first manual deployment can initialize the SQL tables; normal pushes deploy without schema initialization.

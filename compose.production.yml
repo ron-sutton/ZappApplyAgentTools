@@ -1,0 +1,25 @@
+# Same project/service identity as compose.yml; only agenttools is managed here.
+name: zappapply-agenttools
+services:
+  agenttools:
+    image: ${ZAPPAPPLY_AGENTTOOLS_IMAGE:?Deployment script supplies the agent-tools image}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 40s
+    env_file:
+      - path: ${ZAPPAPPLY_AGENTTOOLS_ENV_FILE:?Set the absolute server configuration path}
+        format: raw
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+    ports:
+      - "127.0.0.1:18643:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      default:
+        aliases: [zappapply-agenttools]
+networks:
+  default:
+    external: true
+    name: ${ZAPPAPPLY_QUEUE_NETWORK:-zappapply-queue_default}
