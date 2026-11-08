@@ -53,8 +53,8 @@ public sealed class SearchState
 }
 public sealed record AcceptedCandidate(string Identity, JsonElement Posting, Guid SourceId);
 public sealed record RejectedCandidate(string Url, string[] Reasons);
-public sealed record SourceRecord(Guid Id, Guid JobId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null);
-public sealed record ReadPostingResult(Guid SourceId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null);
+public sealed record SourceRecord(Guid Id, Guid JobId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null, string? Description = null);
+public sealed record ReadPostingResult(Guid SourceId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null, string? Description = null);
 public sealed record CandidateSubmission(Guid SourceId, SourcePosting Posting);
 public sealed record PolicyResult(bool Accepted, string Identity, string[] Reasons, bool Cancelled = false);
 public sealed record Progress(string Status, int AcceptedCount, int TargetCount, int Remaining, int ToolCalls, int MaxToolCalls,
@@ -73,7 +73,7 @@ public interface ISearchStore
     Task SaveSource(SourceRecord source, CancellationToken ct);
     Task<SourceRecord?> Source(Guid id, Guid jobId, CancellationToken ct);
 }
-public sealed record PostingEvidence(string Url, string Text, string[] ApplicationUrls);
+public sealed record PostingEvidence(string Url, string Text, string[] ApplicationUrls, string? Description = null);
 public interface IPostingReader {
     Task<(string Url, string Text)> Read(string url, CancellationToken ct);
     async Task<PostingEvidence> ReadEvidence(string url, CancellationToken ct) { var read = await Read(url, ct); return new(read.Url, read.Text, []); }

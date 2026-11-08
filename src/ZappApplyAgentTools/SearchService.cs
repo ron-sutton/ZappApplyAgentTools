@@ -90,7 +90,7 @@ public sealed partial class SearchService(ISearchStore store, IPostingReader rea
         await RecordAttempt(state, workerId, url, "read", ct);
         if (!SameUrl(url, result.Url)) await RecordAttempt(state, workerId, result.Url, "read", ct);
         if (result.Text.Length is < 40 or > 150_000) throw new ToolFailure("The public page did not provide a usable posting body. Try another source for this opening.");
-        var source = new SourceRecord(Guid.NewGuid(), state.JobId, result.Url, result.Text, Wire.Hash(result.Text), clock.GetUtcNow(), result.ApplicationUrls);
+        var source = new SourceRecord(Guid.NewGuid(), state.JobId, result.Url, result.Text, Wire.Hash(result.Text), clock.GetUtcNow(), result.ApplicationUrls, result.Description ?? result.Text);
         await store.SaveSource(source, ct);
         return source;
         }
@@ -105,14 +105,19 @@ public sealed partial class SearchService(ISearchStore store, IPostingReader rea
         foreach (var candidate in candidates)
         {
             if (candidate?.Posting is null) throw new ToolFailure("Each candidate needs sourceId and a posting object.");
-            var reasons = new List<string>(); var posting = JsonSerializer.SerializeToElement(candidate.Posting, Wire.Json);
+            var reasons = new List<string>();
+            var source = await store.Source(candidate.SourceId, state.JobId, ct);
+            // The reader owns description content. Never ask a model to reproduce
+            // an exact page passage, or accept its rewritten/invented description.
+            var retained = JsonSerializer.SerializeToElement(candidate.Posting, Wire.Json).Deserialize<SourcePosting>(Wire.Json)!;
+            if (source is not null) retained.Description = source.Description ?? source.Text;
+            var posting = JsonSerializer.SerializeToElement(retained, Wire.Json);
             string Text(string key) => posting.ValueKind == JsonValueKind.Object && posting.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString()! : "";
             var validation = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
-            if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(candidate.Posting, new(candidate.Posting), validation, true)) reasons.AddRange(validation.Select(v => v.ErrorMessage ?? "Invalid candidate field."));
+            if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(retained, new(retained), validation, true)) reasons.AddRange(validation.Select(v => v.ErrorMessage ?? "Invalid candidate field."));
             if (candidate.Posting.SalaryMin.HasValue && candidate.Posting.SalaryMax < candidate.Posting.SalaryMin) reasons.Add("Salary range is invalid.");
             if ((candidate.Posting.EligibleCountries is null || candidate.Posting.EligibleCountries.Any(c => c is null || c.Length != 2 || c.Any(ch => ch is < 'A' or > 'Z')))) reasons.Add("Eligible countries must be uppercase ISO two-letter codes.");
             var url = Text("url");
-            var source = await store.Source(candidate.SourceId, state.JobId, ct);
             if (source is null) reasons.Add("Read this posting with read_posting first; its source must belong to this search.");
             if (posting.GetRawText().Length > 150_000) reasons.Add("Candidate is too large.");
             foreach (var field in new[] { "title", "company", "description", "source" })
@@ -121,7 +126,7 @@ public sealed partial class SearchService(ISearchStore store, IPostingReader rea
             {
                 if (!SameUrl(url, source.Url)) reasons.Add("Use the exact retrieved posting URL.");
                 var evidence = Wire.Normalize(source.Text);
-                foreach (var field in new[] { "title", "company", "description" })
+                foreach (var field in new[] { "title", "company" })
                     if (!string.IsNullOrWhiteSpace(Text(field)) && !evidence.Contains(Wire.Normalize(Text(field)), StringComparison.OrdinalIgnoreCase))
                         reasons.Add(field + " must be supported by an exact passage from the retrieved source; do not invent or summarize it.");
                 foreach (var field in new[] { "salaryMin", "salaryMax" })

@@ -34,9 +34,9 @@ var other = await searches.Begin(Request(Guid.NewGuid(), "owner-b"), default);
 progress = await searches.Submit(other.Handle, [first], default);
 Check("Foreign source cannot cross searches", progress.AcceptedCount == 0 && progress.Rejections.Last().Reasons.Any(x => x.Contains("belong")));
 var second = await searches.ReadPosting(admission.Handle, "https://employer.example/jobs/2", default);
-var unsupported = Posting(second.Url); unsupported.Description = "An invented achievement.";
+var unsupported = Posting(second.Url); unsupported.Title = "An invented occupation.";
 progress = await searches.Submit(admission.Handle, [new(second.Id, unsupported)], default);
-Check("Invented source facts are rejected", progress.AcceptedCount == 1 && progress.Rejections.Last().Reasons.Any(x => x.Contains("description")));
+Check("Invented source identity is rejected", progress.AcceptedCount == 1 && progress.Rejections.Last().Reasons.Any(x => x.Contains("title")));
 var inventedPay = Posting(second.Url); inventedPay.SalaryMin = 999999;
 progress = await searches.Submit(admission.Handle, [new(second.Id, inventedPay)], default);
 Check("Unsupported salary does not count", progress.AcceptedCount == 1 && progress.Rejections.Last().Reasons.Any(x => x.Contains("salaryMin")));
@@ -107,5 +107,6 @@ try
 }
 finally { await hosted.StopAsync(); await hosted.DisposeAsync(); }
 await ControlledChecks.Run(Check);
+await DescriptionChecks.Run(Check);
 if (args.Contains("--localdb")) await SqlChecks.Run(Check);
 Console.WriteLine($"{count} search tool checks passed. No live AI or production writes.");

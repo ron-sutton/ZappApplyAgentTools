@@ -58,3 +58,10 @@ catch {
     }
     throw $deploymentError
 }
+
+# Cleanup is deliberately outside deployment/rollback handling. A cleanup
+# problem must never roll back an already healthy release.
+try {
+    & (Join-Path $PSScriptRoot 'Cleanup-ReleaseImages.ps1') -Repository 'zappapply-agenttools' -TagPrefix 'release-' -KeepImages @($Image, $previousImage) -KeepUnused 0
+}
+catch { Write-Warning ("Deployment succeeded, but old release image cleanup was skipped: " + $_.Exception.Message) }

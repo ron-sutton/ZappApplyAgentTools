@@ -17,6 +17,7 @@ function global:docker {
     if ($Arguments[0] -eq 'network') { return 'zappapply-queue_default' }
     if ($Arguments -contains 'ps') { if ($global:agentToolsDeployFixture.Mode -ne 'first-failure') { return 'fictional-container' }; return }
     if ($Arguments[0] -eq 'inspect') { return 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
+    if ($Arguments[0] -eq 'image' -and $Arguments[1] -eq 'inspect') { return 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
     if ($Arguments[0] -eq 'build' -and $global:agentToolsDeployFixture.Mode -eq 'build-failure') { $global:LASTEXITCODE = 1; return }
     if ($Arguments -contains '--initialize-store' -and $global:agentToolsDeployFixture.Mode -eq 'init-failure') { $global:LASTEXITCODE = 1; return }
     if ($Arguments -contains 'up') {

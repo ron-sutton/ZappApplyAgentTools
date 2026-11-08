@@ -68,7 +68,7 @@ public sealed class PublicPostingReader : IPostingReader
             var text = structured.Count > 0 ? string.Join("\n\n", structured) : content?.TextContent ?? "";
             text = WebUtility.HtmlDecode(text).Trim();
             if (text.Length > 150_000) throw new ToolFailure("Posting text is too large.");
-            return new(uri.AbsoluteUri, text, applicationUrls);
+            return new(uri.AbsoluteUri, text, applicationUrls, DescriptionFromHtml(body) ?? text);
         }
         throw new ToolFailure("Too many posting redirects.");
     }
@@ -81,6 +81,29 @@ public sealed class PublicPostingReader : IPostingReader
             .Select(element => element.GetAttribute(element.LocalName == "iframe" ? "src" : "href"))
             .Select(value => Uri.TryCreate(page, value, out var uri) && uri.Scheme is "https" or "http" && string.IsNullOrEmpty(uri.UserInfo) && uri.IsDefaultPort ? uri.AbsoluteUri : null)
             .OfType<string>().Where(url => url.Length <= 2048).Distinct().Take(30).ToArray();
+    }
+    public static string? DescriptionFromHtml(string html)
+    {
+        var page = new HtmlParser().ParseDocument(html); var descriptions = new List<string>();
+        void Visit(JsonElement node)
+        {
+            if (node.ValueKind == JsonValueKind.Array) { foreach (var item in node.EnumerateArray()) Visit(item); return; }
+            if (node.ValueKind != JsonValueKind.Object) return;
+            if (node.TryGetProperty("@type", out var type) && (type.ValueKind == JsonValueKind.String && type.GetString() == "JobPosting" || type.ValueKind == JsonValueKind.Array && type.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String && x.GetString() == "JobPosting"))
+                && node.TryGetProperty("description", out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+            {
+                var marked = System.Text.RegularExpressions.Regex.Replace(value.GetString()!, @"(?i)(</(?:p|div|li|h[1-6]|ul|ol|section|tr)>|<br\s*/?>)", "$0\n");
+                var description = new HtmlParser().ParseDocument(marked);
+                foreach (var element in description.QuerySelectorAll("script,style,noscript")) element.Remove();
+                var clean = WebUtility.HtmlDecode(description.Body?.TextContent ?? "").Trim();
+                if (!string.IsNullOrWhiteSpace(clean)) descriptions.Add(clean);
+            }
+            if (node.TryGetProperty("@graph", out var graph)) Visit(graph);
+        }
+        foreach (var script in page.QuerySelectorAll("script[type='application/ld+json']"))
+            try { using var json = JsonDocument.Parse(script.TextContent); Visit(json.RootElement); } catch (JsonException) { }
+        // A multi-posting listing page has no unambiguous single job description.
+        return descriptions.Count == 1 ? descriptions[0] : null;
     }
     private static void Collect(JsonElement node, List<string> output)
     {

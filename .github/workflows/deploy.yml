@@ -42,6 +42,10 @@ jobs:
           if (!(Test-Path -LiteralPath $powerShell7 -PathType Leaf)) {
             throw "PowerShell 7 must be installed for all users at $powerShell7 on the runner host."
           }
+          & $powerShell7 -NoLogo -NoProfile -NonInteractive -File (Join-Path $PWD 'tests/deployment/ImageCleanup.Checks.ps1')
+          if ($LASTEXITCODE -ne 0) { throw 'Image cleanup checks failed.' }
+          & $powerShell7 -NoLogo -NoProfile -NonInteractive -File (Join-Path $PWD 'tests/deployment/DeploymentCleanup.Checks.ps1') -DeployScript (Join-Path $PWD 'deploy/Deploy.ps1') -Repository 'zappapply-agenttools' -TagPrefix 'release-' -EnvironmentVariable 'ZAPPAPPLY_AGENTTOOLS_ENV_FILE'
+          if ($LASTEXITCODE -ne 0) { throw 'Deployment retention checks failed.' }
           & $powerShell7 -NoLogo -NoProfile -NonInteractive -File (Join-Path $PWD 'tests/deployment/Deploy.Checks.ps1')
           if ($LASTEXITCODE -ne 0) { throw 'Deployment checks failed.' }
           $deployArgs = @(

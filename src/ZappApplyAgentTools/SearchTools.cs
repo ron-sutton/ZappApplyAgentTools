@@ -12,9 +12,9 @@ public sealed class SearchTools(SearchService searches)
     {
         SourceRecord source;
         try { source = await searches.ReadPosting(handle, url, ct, workerId); } catch (ToolFailure error) { throw new McpException(error.Message); }
-        return new(source.Id, source.Url, source.Text, source.Hash, source.FetchedAt, source.ApplicationUrls);
+        return new(source.Id, source.Url, source.Text, source.Hash, source.FetchedAt, source.ApplicationUrls, source.Description);
     }
-    [McpServerTool(Name = "submit_candidates"), Description("Submit sourced jobs for criteria/duplicate validation and immediate durable saving. Returns accepted count, remaining count and rejection reasons. A sourceId from read_posting is required for each candidate.")]
+    [McpServerTool(Name = "submit_candidates"), Description("Submit sourced jobs for criteria/duplicate validation and immediate durable saving. The service fills description from retained source evidence, ignoring model rewrites. Returns counts and rejection reasons. Requires sourceId from read_posting and the assigned running workerId for protocol 2.")]
     public Task<Progress> SubmitCandidates(string handle, CandidateSubmission[] candidates, CancellationToken ct, string? workerId = null) => Safe(() => searches.Submit(handle, candidates, ct, workerId));
     [McpServerTool(Name = "get_search_progress", ReadOnly = true, Idempotent = true), Description("Get this search's accepted count, remaining count, budgets and recent rejection reasons without creating a new search.")]
     public Task<Progress> GetProgress(string handle, CancellationToken ct) => Safe(() => searches.GetProgress(handle, ct));
