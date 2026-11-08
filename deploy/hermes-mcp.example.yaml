@@ -1,0 +1,15 @@
+# Merge into the persisted Hermes config; preserve all existing servers.
+mcp_servers:
+  zappapply_agenttools:
+    url: http://zappapply-agenttools:8080/mcp
+    headers:
+      Authorization: "Bearer ${ZAPPAPPLY_AGENTTOOLS_MCP_KEY}"
+    enabled: true
+    trust: full
+    timeout: 60
+    connect_timeout: 20
+    supports_parallel_tool_calls: false
+    tools:
+      include: [read_posting, submit_candidates, get_search_progress, finish_search]
+      resources: false
+      prompts: false

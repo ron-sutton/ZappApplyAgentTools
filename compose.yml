@@ -1,0 +1,20 @@
+name: zappapply-agenttools
+services:
+  agenttools:
+    build: .
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: ${ZAPPAPPLY_AGENTTOOLS_ENV_FILE:?Set the server environment-file path}
+        format: raw
+    ports:
+      - "127.0.0.1:18643:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      default:
+        aliases: [zappapply-agenttools]
+networks:
+  default:
+    external: true
+    name: ${ZAPPAPPLY_QUEUE_NETWORK:-zappapply-queue_default}
