@@ -86,6 +86,7 @@ static class ControlledChecks
     }
     sealed class ControlledPolicy : IApplicationPolicy
     {
+        public Task<DuplicateCheckResult> CheckDuplicate(Guid id, string owner, string url, CancellationToken ct) => Task.FromResult(new DuplicateCheckResult(false));
         public bool Cancel;
         public Task<bool> IsCancelled(Guid id, string owner, CancellationToken ct) => Task.FromResult(Cancel);
         public Task<PolicyResult> Evaluate(Guid id, string owner, JsonElement posting, CancellationToken ct) => Task.FromResult(new PolicyResult(true, posting.GetProperty("url").GetString()!, []));

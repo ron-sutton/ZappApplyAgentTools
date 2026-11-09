@@ -15,6 +15,7 @@ sealed class FakeReader : IPostingReader
 { public Task<(string Url, string Text)> Read(string url, CancellationToken ct) => Task.FromResult((url, "Fixture Employer\nEngineer\nEngineer develops systems. Salary 175000. Remote US.")); }
 sealed class FakePolicy : IApplicationPolicy
 {
+    public Task<DuplicateCheckResult> CheckDuplicate(Guid id, string owner, string url, CancellationToken ct) => Task.FromResult(new DuplicateCheckResult(false));
     public bool Reject; public int Calls;
     public Task<PolicyResult> Evaluate(Guid jobId, string owner, JsonElement posting, CancellationToken ct) { Interlocked.Increment(ref Calls); return Task.FromResult(new PolicyResult(!Reject, posting.GetProperty("url").GetString()!, Reject ? ["User criterion did not match."] : [])); }
 }

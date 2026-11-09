@@ -54,7 +54,12 @@ public sealed class SearchState
 public sealed record AcceptedCandidate(string Identity, JsonElement Posting, Guid SourceId);
 public sealed record RejectedCandidate(string Url, string[] Reasons);
 public sealed record SourceRecord(Guid Id, Guid JobId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null, string? Description = null);
-public sealed record ReadPostingResult(Guid SourceId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null, string? Description = null);
+public sealed record ReadPostingResult(Guid SourceId, string Url, string Text, string Hash, DateTimeOffset FetchedAt, string[]? ApplicationUrls = null, string? Description = null, bool AlreadyKnown = false, string? Message = null);
+public sealed record DuplicateCheckResult(bool Duplicate);
+public sealed class KnownPostingException(string url) : Exception("This user has already found or tracked this opening. Find a different opening.")
+{
+    public string Url { get; } = url;
+}
 public sealed record CandidateSubmission(Guid SourceId, SourcePosting Posting);
 public sealed record PolicyResult(bool Accepted, string Identity, string[] Reasons, bool Cancelled = false);
 public sealed record Progress(string Status, int AcceptedCount, int TargetCount, int Remaining, int ToolCalls, int MaxToolCalls,
@@ -79,6 +84,7 @@ public interface IPostingReader {
     async Task<PostingEvidence> ReadEvidence(string url, CancellationToken ct) { var read = await Read(url, ct); return new(read.Url, read.Text, []); }
 }
 public interface IApplicationPolicy {
+    Task<DuplicateCheckResult> CheckDuplicate(Guid jobId, string ownerId, string url, CancellationToken ct);
     Task<PolicyResult> Evaluate(Guid jobId, string ownerId, JsonElement posting, CancellationToken ct);
     Task<PolicyResult> EvaluateEvidence(Guid jobId, string ownerId, JsonElement posting, string[] urls, CancellationToken ct) => Evaluate(jobId, ownerId, posting, ct);
     Task<bool> IsCancelled(Guid jobId, string ownerId, CancellationToken ct) => Task.FromResult(false);

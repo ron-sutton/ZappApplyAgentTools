@@ -108,5 +108,6 @@ try
 finally { await hosted.StopAsync(); await hosted.DisposeAsync(); }
 await ControlledChecks.Run(Check);
 await DescriptionChecks.Run(Check);
+await DuplicateChecks.Run(Check);
 if (args.Contains("--localdb")) await SqlChecks.Run(Check);
 Console.WriteLine($"{count} search tool checks passed. No live AI or production writes.");

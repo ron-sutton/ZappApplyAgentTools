@@ -39,6 +39,14 @@ Rollback: switch **new admissions** back to protocol 1. Keep compatible queue/se
 
 `dotnet run --project tests/ZappApplyAgentTools.Checks -- --localdb` uses fictional jobs and a disposable SQL database, covering four-bot cap enforcement, stop-at-two continuation, actual attempts, optional non-listed sources, immutable inputs, parent/child waits, stale workers, replay, restarts, deadline/provider/cancellation and owner isolation. The queue's checks use a fake native Runs provider and control service; the website's SearchToolPolicyChecks use an isolated database. No live AI is needed.
 
+## Early duplicate checks
+
+`read_posting` (including `inspect_source`, which uses the same reader path) now calls the website's service-authenticated `POST /api/internal/search-tools/duplicate` before downloading a page. The website validates ownership and compares the URL with the owner's entire discovered and tracked history, including dismissed and applied jobs. The endpoint returns only `duplicate`; neither the search status nor the tracked job status affects this verdict. EF's parameterized SQL query projects only URLs from PostingJson, excluding descriptions and personal information from the transfer. Existing ATS identity matching handles known listing/apply/locale and tracking-parameter variants; unrelated requisitions and other users' jobs are not excluded.
+
+A known opening returns a successful MCP result with `alreadyKnown: true`, an empty source ID/body, and an instruction to find another opening. It does not create source evidence or count as an accepted job. Policy-service failures stop the read without silently bypassing the preflight. Search lifecycle enforcement remains in the separate execution/control logic. Final evidence-backed duplicate validation remains in place for redirects and cross-site application links that cannot be identified before fetching.
+
+Deploy the website first, then AgentTools. The new reader requires the new internal endpoint; deploying it first would produce a controlled unavailable-service error. No queue change, MCP allowlist change, SQL prompt publication, or migration is required. Existing saved requests and sources remain compatible. This check cannot prevent downloads made independently through Hermes' built-in web tools.
+
 ## Smaller live test and retained descriptions
 
 For the approved test, set Search__TargetCount=4 and Search__WorkerCount=2 in C:\ProgramData\ZappApplyAgentTools\service.env before deploying/recreating AgentTools. Counts are captured when a new search begins; existing searches retain their original target and assignments. SQL prompt v6 uses supplied assignments and targetCount rather than a fixed four-worker instruction. Production defaults in code remain 10 jobs / 4 workers and can be restored through the environment settings after testing.

@@ -79,6 +79,8 @@ public sealed partial class SearchService(ISearchStore store, IPostingReader rea
         var state = await Authorized(handle, true, ct, workerId);
         try
         {
+        var duplicate = await policy.CheckDuplicate(state.JobId, state.OwnerId, url, ct);
+        if (duplicate.Duplicate) throw new KnownPostingException(url);
         PostingEvidence result;
         try { result = await reader.ReadEvidence(url, ct); }
         catch (Exception error) when (error is ToolFailure or HttpRequestException || error is OperationCanceledException && !ct.IsCancellationRequested)
